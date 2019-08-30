@@ -193,9 +193,21 @@ uint32_t WS2812B::getPixelColor(uint16_t n) const {
     grb[i] |= (*bptr & 0b00000010) >> 1; // bit 0
     bptr++;
   }
-  return ((uint32_t)grb[1] << 16) |
-         ((uint32_t)grb[0] <<  8) |
-          (uint32_t)grb[2];
+  if (brightness) {
+    // Stored color was decimated by setBrightness().  Returned value
+    // attempts to scale back to an approximation of the original 24-bit
+    // value used when setting the pixel color, but there will always be
+    // some error -- those bits are simply gone.  Issue is most
+    // pronounced at low brightness levels.
+    return (((uint32_t)(grb[1] << 8) / brightness) << 16) |
+           (((uint32_t)(grb[0] << 8) / brightness) <<  8) |
+           ( (uint32_t)(grb[2] << 8) / brightness       );
+  } else {
+    // No brightness adjustment has been made -- return 'raw' color
+    return ((uint32_t)grb[1] << 16) |
+           ((uint32_t)grb[0] <<  8) |
+            (uint32_t)grb[2];
+  }
 }
 
 uint16_t WS2812B::numPixels(void) const {
@@ -223,18 +235,24 @@ void WS2812B::setBrightness(uint8_t b) {
   // brightness (off), 255 = just below max brightness.
   uint8_t newBrightness = b + 1;
   if(newBrightness != brightness) { // Compare against prior value
-    // Brightness has changed -- re-scale existing data in RAM
-    uint8_t  c,
-            *ptr           = pixels,
-             oldBrightness = brightness - 1; // De-wrap old brightness value
+    // Brightness has changed -- re-scale encoded data in RAM
+    uint8_t c,
+            *ptr,
+            oldBrightness = brightness - 1; // De-wrap old brightness value
     uint16_t scale;
-    if(oldBrightness == 0) scale = 0; // Avoid /0
-    else if(b == 255) scale = 65535 / oldBrightness;
+    if (oldBrightness == 0) scale = 0; // Avoid /0
+    else if (b == 255) scale = 65535 / oldBrightness;
     else scale = (((uint16_t)newBrightness << 8) - 1) / oldBrightness;
-    for(uint16_t i=0; i<numBytes; i++) 
-	{
-      c      = *ptr;
-      *ptr++ = (c * scale) >> 8;
+    
+    brightness = 0; // Turn off brightness scaling in setPixelColor
+    
+    for(uint16_t i = 0; i < numPixels(); i++) {
+      uint32_t rgb = getPixelColor(i);
+      ptr = (uint8_t*)(&rgb);
+      c = *ptr; *ptr++ = (c * scale) >> 8;
+      c = *ptr; *ptr++ = (c * scale) >> 8;
+      c = *ptr; *ptr++ = (c * scale) >> 8;
+      setPixelColor(i, rgb);
     }
     brightness = newBrightness;
   }
