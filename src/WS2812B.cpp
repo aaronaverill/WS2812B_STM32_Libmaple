@@ -172,6 +172,31 @@ uint32_t WS2812B::Color(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
   return ((uint32_t)w << 24) | ((uint32_t)r << 16) | ((uint32_t)g <<  8) | b;
 }
 
+uint32_t WS2812B::getPixelColor(uint16_t n) const {
+  if(n >= numLEDs) return 0; // Out of bounds, return no color.
+
+  // Extract the g,r,b values from the 3 bit encoded data.
+  // A positive bit of rgb appears in the middle (2nd) bit of the encoded 3 bit tuple.
+  // Encoded bit positions for a single pixel byte: -7--6--5,--4--3--,2--1--0-
+  uint8_t *bptr = pixels + (n<<3) + n +1;
+  uint8_t grb[3] = {0, 0, 0};
+  for(uint8_t i = 0; i < 3; i++) {
+    grb[i] |= (*bptr & 0b01000000) << 1; // bit 7
+    grb[i] |= (*bptr & 0b00001000) << 3; // bit 6
+    grb[i] |= (*bptr & 0b00000001) << 5; // bit 5
+    bptr++;
+    grb[i] |= (*bptr & 0b00100000) >> 1; // bit 4
+    grb[i] |= (*bptr & 0b00000100) << 1; // bit 3
+    bptr++;
+    grb[i] |= (*bptr & 0b10000000) >> 5; // bit 2
+    grb[i] |= (*bptr & 0b00010000) >> 3; // bit 1
+    grb[i] |= (*bptr & 0b00000010) >> 1; // bit 0
+    bptr++;
+  }
+  return ((uint32_t)grb[1] << 16) |
+         ((uint32_t)grb[0] <<  8) |
+          (uint32_t)grb[2];
+}
 
 uint16_t WS2812B::numPixels(void) const {
   return numLEDs;
