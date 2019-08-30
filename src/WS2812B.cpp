@@ -240,8 +240,8 @@ void WS2812B::setBrightness(uint8_t b) {
             *ptr,
             oldBrightness = brightness - 1; // De-wrap old brightness value
     uint16_t scale;
-    if (oldBrightness == 0) scale = 0; // Avoid /0
-    else if (b == 255) scale = 65535 / oldBrightness;
+    if(oldBrightness == 0) scale = 0; // Avoid /0
+    else if(b == 255) scale = 65535 / oldBrightness;
     else scale = (((uint16_t)newBrightness << 8) - 1) / oldBrightness;
     
     brightness = 0; // Turn off brightness scaling in setPixelColor
